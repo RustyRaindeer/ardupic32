@@ -42,7 +42,7 @@ enum nvmop_e {
     NVMOP_ERASE_PFM  = 5,   // Erase whole Program Flash Memory (PFM)
 };
 
-class Pic32JTAGDevice: Pic32JTAG {
+class Pic32JTAGDevice: public Pic32JTAG {
 private:
     uint32_t DeviceID_;
     struct Pic32DevID_t DevID_;

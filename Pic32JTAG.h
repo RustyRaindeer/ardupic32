@@ -52,15 +52,18 @@
 
 bool _debug = 0;
 
-class Pic32JTAG: ArduinoJTAG {
+class Pic32JTAG: public ArduinoJTAG {
 
-public:
+private:
+    bool prAcc_;
 
+protected:
     Pic32JTAG()
     {
         
     }
 
+public:
     void SetReset(bool set)
     {
         if ( set )
@@ -69,6 +72,7 @@ public:
             SetMCLR();
     }
 
+protected:
     uint32_t SetMode(char* cmdname, unsigned char bits, uint32_t mode)
     {
       uint32_t data = 0;
@@ -195,7 +199,6 @@ public:
     uint32_t XferFastData(uint32_t cmd)
     {
       uint32_t data = 0;
-      bool prAcc = false;
 
       if (_debug) Serial.print("XferFastData ");
       if (_debug) Serial.println(cmd, HEX);
@@ -209,7 +212,7 @@ public:
           ClockPulse();
 
           ClearTDI();
-          prAcc = ClockPulse();  
+          prAcc_ = ClockPulse();  
           data = XferDataData(32, cmd);
 
           ClearTDI();
@@ -217,16 +220,15 @@ public:
           ClearTMS();
           ClockPulse();
 
-//          if ( ! prAcc )
-//          {
-//              if (_debug) Serial.print("!PrAcc ?? read ");
-//              if (_debug) Serial.println(data, HEX);
-//          }
-      } while(0);//while ( !prAcc );
+      } while(0);
 
       return data;
     }
 
+    bool getPrAcc(void)
+    {
+        return prAcc_;
+    }
 
     uint32_t XferData(char* cmdname, unsigned char bits, uint32_t cmd)
     {
