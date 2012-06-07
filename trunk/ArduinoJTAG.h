@@ -37,7 +37,7 @@ class ArduinoJTAG
 private:
     bool tdo_;
 
-public:    
+protected:    
 
     /* All pins on PORTB!
      */
@@ -55,8 +55,6 @@ public:
         BIT_TCK  = 0x01 << (PIN_TCK  - 8),
         BIT_MCLR = 0x01 << (PIN_MCLR - 8)
     };
-
-public:
 
     ArduinoJTAG()
     {
