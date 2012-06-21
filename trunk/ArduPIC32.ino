@@ -88,32 +88,30 @@
 #include "Pic32JTAGDevice.h"
 #include "MySerial.h"
 
+#define VERSION_STRING F("ArduPIC32 v1.2")
 
-void PrintHelp()
+void PrintHelp(bool conn)
 {
-    Serial.println(F("ArduPIC32 v1.01"));
+    Serial.println(VERSION_STRING);
     Serial.println(F("   h    - help"));
-    Serial.println(F("   p    - .hex program+verify mode"));
-    Serial.println(F("   P    - .hex programming only"));
-    Serial.println(F("   v    - .hex verify mode"));
-    Serial.println(F("   e    - Erase flash"));
-    Serial.println(F("   E    - JTAG MCHP_ERASE"));
-    Serial.println(F("   d    - dump memory"));
+    if ( conn )
+    {   
+        Serial.println(F("   p    - .hex program+verify mode"));
+        Serial.println(F("   P    - .hex programming only"));
+        Serial.println(F("   v    - .hex verify mode"));
+        Serial.println(F("   d    - dump memory"));
+        Serial.println(F("   e    - Erase flash"));
+    }
+    else
+    {
+        Serial.println(F("   c    - Connect PIC in programming mode"));
+        Serial.println(F("   e    - JTAG MCHP_ERASE (erase flash)"));
+    }
     Serial.println(F("   x    - exit"));
 }
 
-
-void setup() {
-  Serial.begin(1200);
-}
-
-
-void loop() 
+void PrintPICInfo( Pic32JTAGDevice &pic32 )
 {
-    Pic32JTAGDevice pic32;
-    uint32_t addr;
-    bool exit = false;
-  
     if ( !pic32.GetDeviceID() || pic32.GetDeviceID() == 0xffffffff )
     {
         Serial.println(F("PIC32 device not found!"));
@@ -145,18 +143,42 @@ void loop()
         Serial.print(F(" - 0x"));
         Serial.println( pic32.GetProgramFlashEnd(), HEX );
         Serial.println();
-        
-        Serial.print(F("Press \"H\" to start!"));
-        Serial.println();
+
+        if ( pic32.NeedsErase() )
+        {
+            Serial.println(F("!!Code Protected!!"));
+            Serial.println(F("Requires MCHP_ERASE before entering pgm mode!"));
+            Serial.println();
+        } 
     }
-    
+}
+
+void setup() {
+  Serial.begin(1200);
+}
+
+void loop() 
+{
+    Pic32JTAGDevice pic32;
+    uint32_t addr;
+    bool exit = false;
+      
+    Serial.println(VERSION_STRING);
+    PrintPICInfo( pic32 );
+    Serial.println(F("Press \"H\" to start!"));
+
+        // Get back out of reset to allow PIC
+        // program to run while waiting...
+    pic32.SetReset(false);
+
     char cmd = '!';
     while ( cmd != 'H' && cmd != 'h' )
     {
         cmd = RXChar();
     }
 
-    PrintHelp();
+    pic32.SetReset(true);
+    PrintHelp( pic32.IsConnected() );
 
     while ( !exit )
     {
@@ -168,102 +190,136 @@ void loop()
         {
 
             case 'n':
-                Serial.println(F("No program (dummy) mode"));
-                HexPgm( pic32, false, false );
-                Serial.println(F("."));
+                if ( pic32.IsConnected() )
+                {
+                    Serial.println(F("No program (dummy) mode"));
+                    HexPgm( pic32, false, false );
+                    Serial.println(F("."));
+                }
                 break;
 
             case 'P':
-                Serial.println(F("Program mode"));
-                HexPgm( pic32, true, false );
-                Serial.println(F("."));
+                if ( pic32.IsConnected() )
+                {
+                    Serial.println(F("Program mode"));
+                    HexPgm( pic32, true, false );
+                    Serial.println(F("."));
+                }
                 break;
 
             case 'p':
-                Serial.println(F("Program+verify mode"));
-                HexPgm( pic32, true, true );
-                Serial.println(F("."));
+                if ( pic32.IsConnected() )
+                {
+                    Serial.println(F("Program+verify mode"));
+                    HexPgm( pic32, true, true );
+                    Serial.println(F("."));
+                }
                 break;
 
             case 'v':
-                Serial.println(F("Verify mode"));
-                HexPgm( pic32, false, true );
-                Serial.println(F("."));
+                if ( pic32.IsConnected() )
+                {
+                    Serial.println(F("Verify mode"));
+                    HexPgm( pic32, false, true );
+                    Serial.println(F("."));
+                }
                 break;
 
             case 'e':
-                Serial.println(F("Erase"));
-                pic32.FlashOperation( NVMOP_NOP,  0x00000000, 0 );
-                
-                addr = pic32.GetBootFlashStart();
-                while ( addr < pic32.GetBootFlashEnd() )
+                if ( pic32.IsConnected() )
                 {
+                    Serial.println(F("Erase"));
+                    pic32.FlashOperation( NVMOP_NOP,  0x00000000, 0 );
+
+                    addr = pic32.GetBootFlashStart();
+                    while ( addr < pic32.GetBootFlashEnd() )
+                    {
+                        Serial.print( F("Erasing: ") );
+                        Serial.println( addr, HEX );
+                        pic32.FlashOperation( NVMOP_ERASE_PAGE, addr, 0 );
+                        pic32.FlashOperation( NVMOP_NOP, 0, 0 );
+
+                        addr += pic32.GetPageSize();
+                    }
+
+                    addr = pic32.GetProgramFlashStart();
                     Serial.print( F("Erasing: ") );
                     Serial.println( addr, HEX );
-                    pic32.FlashOperation( NVMOP_ERASE_PAGE, addr, 0 );
+                    pic32.FlashOperation( NVMOP_ERASE_PFM, addr, 0 );
                     pic32.FlashOperation( NVMOP_NOP, 0, 0 );
 
-                    addr += pic32.GetPageSize();
+                    Serial.println(F(" - Done!"));
                 }
-
-                addr = pic32.GetProgramFlashStart();
-                Serial.print( F("Erasing: ") );
-                Serial.println( addr, HEX );
-                pic32.FlashOperation( NVMOP_ERASE_PFM, addr, 0 );
-                pic32.FlashOperation( NVMOP_NOP, 0, 0 );
-                  
-                Serial.println(F(" - Done!"));
-                break;
-                
-            case 'E':
-                Serial.print(F("Erase"));
-                pic32.ExitPgmMode();
-                delay(100);
-                pic32.CheckStatus();
-                pic32.Erase();
-                pic32.EnterPgmMode();
-                Serial.println(F(" - Done!"));
+                else
+                {
+                    Serial.print(F("MCHP_Erase"));
+                    //pic32.CheckStatus();
+                    pic32.JTAGErase();
+                    Serial.println(F(" - Done!"));
+                }
                 break;
 
             case 't':
-                // Test
-                Serial.println(F("Test flashing "));
-                pic32.DownloadData( 0, 0x12345678 );
-                pic32.DownloadData( 4, 0x9abcdef0 );
-                pic32.DownloadData( 8, 0xdeadf00d );
-                pic32.DownloadData( 12, 0xb00bbabe );
-                pic32.FlashOperation( NVMOP_WRITE_ROW,  pic32.GetProgramFlashStart(), 0 );
-                pic32.DownloadData( 0, 0xaabbccdd );
-                pic32.FlashOperation( NVMOP_WRITE_WORD, pic32.GetBootFlashStart(), 0 );
-                pic32.DownloadData( 0, 0x99669966 );
-                pic32.FlashOperation( NVMOP_WRITE_WORD, pic32.GetBootFlashStart()+4, 0 );
-                pic32.DownloadData( 0, 0xdead );
-                pic32.FlashOperation( NVMOP_WRITE_WORD, pic32.GetBootFlashStart()+8, 0 );
-                pic32.DownloadData( 0, 0xf00d0000 );
-                pic32.FlashOperation( NVMOP_WRITE_WORD, pic32.GetBootFlashStart()+12, 0 );
-                Serial.println(F("- done! "));
+                if ( pic32.IsConnected() )
+                {
+                    // Test
+                    Serial.println(F("Test flashing "));
+                    pic32.DownloadData( 0, 0x12345678 );
+                    pic32.DownloadData( 4, 0x9abcdef0 );
+                    pic32.DownloadData( 8, 0xdeadf00d );
+                    pic32.DownloadData( 12, 0xb00bbabe );
+                    pic32.FlashOperation( NVMOP_WRITE_ROW,  pic32.GetProgramFlashStart(), 0 );
+                    pic32.DownloadData( 0, 0xaabbccdd );
+                    pic32.FlashOperation( NVMOP_WRITE_WORD, pic32.GetBootFlashStart(), 0 );
+                    pic32.DownloadData( 0, 0x99669966 );
+                    pic32.FlashOperation( NVMOP_WRITE_WORD, pic32.GetBootFlashStart()+4, 0 );
+                    pic32.DownloadData( 0, 0xdead );
+                    pic32.FlashOperation( NVMOP_WRITE_WORD, pic32.GetBootFlashStart()+8, 0 );
+                    pic32.DownloadData( 0, 0xf00d0000 );
+                    pic32.FlashOperation( NVMOP_WRITE_WORD, pic32.GetBootFlashStart()+12, 0 );
+                    Serial.println(F("- done! "));
+                }
                 break;
 
             case 'd':
-                // Dump some locations from memmory for testing
-                Serial.println(F("DevID: "));
-                pic32.DumpMemory( 0xbf80f220, 1  );
+                if ( pic32.IsConnected() )
+                {
+                    // Dump some locations from memmory for testing
+                    Serial.println(F("DevID: "));
+                    pic32.DumpMemory( 0xbf80f220, 1  );
 
-                Serial.println(F("Boot Flash Start: "));
-                pic32.DumpMemory( pic32.GetBootFlashStart(), 4  );
+                    Serial.println(F("Program Flash Start: "));
+                    pic32.DumpMemory( pic32.GetProgramFlashStart(), 4  );
 
-                Serial.println(F("Config bits: "));
-                pic32.DumpMemory( pic32.GetConfigurationMemStart(), 4 );
+                    Serial.println(F("Boot Flash Start: "));
+                    pic32.DumpMemory( pic32.GetBootFlashStart(), 4  );
 
-                Serial.println(F("Program Flash Start: "));
-                pic32.DumpMemory( pic32.GetProgramFlashStart(), 4  );
+                    Serial.println(F("Config bits: "));
+                    pic32.DumpMemory( pic32.GetConfigurationMemStart(), 4 );
+                }
 
                 break;
 
+            case 'c':
+                if ( ! pic32.IsConnected() )
+                {
+                    if ( pic32.NeedsErase() )
+                    {
+                        Serial.println(F("Code Protected!"));
+                        Serial.println(F("Needs to be erased first!"));
+                    }
+                    else
+                    {
+                        pic32.EnterPgmMode();
+                        pic32.FlashOperation( NVMOP_NOP,  0x00000000, 0 );
+                        PrintHelp( pic32.IsConnected() );
+                    }
+                }
+                break;
 
             case 'h':
             case 'H':
-                PrintHelp();
+                PrintHelp( pic32.IsConnected() );
                 break;
 
             case 'x':
@@ -276,7 +332,10 @@ void loop()
         }       
     }
 
-    pic32.ExitPgmMode();
+    if ( pic32.IsConnected() )
+    {
+        pic32.ExitPgmMode();
+    }
 
     Serial.println(F("THE END!"));
     while ( 1 )

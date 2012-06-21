@@ -44,11 +44,14 @@
 #define ETAP_FASTDATA   "ETAP_FASTDATA",5,0x0E
 
 #define MCHP_STATUS               "MCHP_STATUS",8,0x00
-#define MCHP_ASERT_SRT         "MCHP_ASERT_SRT",8,0x01
-#define MCHP_DE_ASERT_SRT   "MCHP_DE_ASERT_SRT",8,0x00
+#define MCHP_ASSERT_RST       "MCHP_ASSERT_RST",8,0x01
+#define MCHP_DE_ASSERT_RST "MCHP_DE_ASSERT_RST",8,0x00
 #define MCHP_ERASE                 "MCHP_ERASE",8,0xFC
 #define MCHP_FLASH_ENABLE   "MCHP_FLASH_ENABLE",8,0xFE
 #define MCHP_FLASH_DISABLE "MCHP_FLASH_DISABLE",8,0xFD
+#define MCHP_READ_CONFIG     "MCHP_READ_CONFIG",8,0xFF
+
+#define DATA_IDCODE                    "IDCODE",32,0x0
 
 bool _debug = 0;
 
@@ -73,10 +76,10 @@ public:
     }
 
 protected:
-    uint32_t SetMode(char* cmdname, unsigned char bits, uint32_t mode)
+    uint32_t SetMode(unsigned char bits, uint32_t mode)
     {
       uint32_t data = 0;
-      if (_debug) Serial.println(cmdname);
+      if (_debug) Serial.println(F("SetMode"));
 
       ClearTDI();
 

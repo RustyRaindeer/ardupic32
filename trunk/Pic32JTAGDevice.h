@@ -34,6 +34,15 @@
 #include "Pic32.h"
 #include <avr/pgmspace.h>
 
+enum mchp_status_e {
+    CPS      = 0x80,   // Code Protect State    ( 0 = is code protected )
+    NVMERR   = 0x20,   // NVMCON Status bit     ( 1 = error occurred during NVM op )
+    CFGRDY   = 0x08,   // Configuration Ready   ( 1 = Config read and CP valid )
+    FCBUSY   = 0x04,   // Flash Controller Busy ( 1 = Flash controller busy )
+    FAEN     = 0x02,   // Flash Access Enable   ( 1 = Flash Access Enabled )
+    DEVRST   = 0x01    // Device Reset State    ( 1 = Device Reset is Active )
+};
+
 enum nvmop_e {
     NVMOP_NOP        = 0,
     NVMOP_WRITE_WORD = 1,
@@ -45,6 +54,8 @@ enum nvmop_e {
 class Pic32JTAGDevice: public Pic32JTAG {
 private:
     uint32_t DeviceID_;
+    uint32_t MyStatus_;
+    bool     InPgmMode_;
     struct Pic32DevID_t DevID_;
 
 public:
@@ -59,24 +70,24 @@ public:
         return DevID_.DevName;
     }
 
-    uint16_t GetRowSize()
+    uint32_t GetRowSize()
     {
-        return DevID_.RowSize * 4;
+        return (uint32_t)DevID_.RowSize * 4;
     }
 
-    uint16_t GetPageSize()
+    uint32_t GetPageSize()
     {
-        return DevID_.RowSize * 4 * 8;
+        return (uint32_t)DevID_.RowSize * 4 * 8;
     }
 
-    uint16_t GetBootFlashMemorySize()
+    uint32_t GetBootFlashMemorySize()
     {
-        return DevID_.BFMSize * 1024;
+        return (uint32_t)DevID_.BFMSize * 1024;
     }
 
-    uint16_t GetProgramFlashMemorySize()
+    uint32_t GetProgramFlashMemorySize()
     {
-        return DevID_.PFMSize * 1024;
+        return (uint32_t)DevID_.PFMSize * 1024;
     }
 
     uint32_t GetBootFlashStart()
@@ -104,62 +115,77 @@ public:
         return GetBootFlashEnd() + 1 - 4*4;
     }
 
-    void CheckStatus( )
+    uint32_t CheckStatus( )
     {
-      uint32_t mystatus = 0;
+        SetReset(true);
+        SetMode(6, 0x1f);
+        SendCommand(MTAP_SW_MTAP);
+        SendCommand(MTAP_COMMAND);
+        MyStatus_ = XferData(MCHP_STATUS);
 
-      SetReset(true);
-      SetMode("SetMode",6, 0x1f);
-      SendCommand(MTAP_SW_MTAP);
-      SendCommand(MTAP_COMMAND);
-      mystatus = XferData(MCHP_STATUS);
-
-      while ( ((mystatus & 0x8) == 0) || (mystatus & 0x04) )
-      {
-        delay(1000); 
-        mystatus = XferData(MCHP_STATUS);
-      }
+        while ( ((MyStatus_ & CFGRDY) == 0) || 
+                 (MyStatus_ & FCBUSY) )
+        {
+            delay(1000); 
+            MyStatus_ = XferData(MCHP_STATUS);
+        }
     }
 
-    void Erase(  )
+    bool NeedsErase()
     {
-      uint32_t mystatus = 0;
-
-      SendCommand(MTAP_SW_MTAP);
-      SendCommand(MTAP_COMMAND);
-      mystatus = XferData(MCHP_ERASE);
-      delay(1000);
-
-      mystatus = 0;
-      while ( ((mystatus & 0x8) == 0) || (mystatus & 0x04) )
-      {
-        delay(1000); 
-        mystatus = XferData(MCHP_STATUS);
-      }
+        return (MyStatus_ & CPS) == 0;
     }
 
-    void EnterPgmMode(  )
+    void JTAGErase()
     {
-      uint32_t mystatus = 0;
+        uint8_t ind = 0;
+        
+        if ( !InPgmMode_ )
+        {
+            SendCommand(MTAP_SW_MTAP);
+            SendCommand(MTAP_COMMAND);
+            XferData(MCHP_ERASE);
+            delay(1);
+            MyStatus_ = XferData(MCHP_STATUS);
 
-      SendCommand(MTAP_SW_MTAP);
-      SendCommand(MTAP_COMMAND);
-      mystatus = XferData(MCHP_STATUS);
+            while ( ((MyStatus_ & CFGRDY) == 0) || 
+                     (MyStatus_ & FCBUSY) )
+            {
+                delay(10); 
+                MyStatus_ = XferData(MCHP_STATUS);
+                //Serial.print(F("Status: "));
+                //Serial.println(MyStatus_,HEX);}
+            }
+        }
+    }
 
-      SendCommand(MTAP_SW_ETAP);
-      SendCommand(ETAP_EJTAGBOOT);
-      SetReset(false);
+    void EnterPgmMode()
+    {
+        SetReset(true);
+        SendCommand(MTAP_SW_ETAP);
+        SendCommand(ETAP_EJTAGBOOT);
+        SetReset(false);
+
+        InPgmMode_ = true;
     }
 
 
     void ExitPgmMode()
     {
-      uint32_t mystatus = 0;
+        SetMode(5, 0x1f);
+        SetReset(true);
 
-      SetMode("SetMode", 5, 0x1f);
-      SetReset(true);
+        InPgmMode_ = false;
     }
 
+
+    uint32_t ReadIDCodeRegister(  )
+    {
+        SendCommand(MTAP_IDCODE);
+        DeviceID_ = XferData(DATA_IDCODE);
+
+        return DeviceID_;
+    }
 
     void DownloadData( uint16_t ram_addr, uint32_t data )
     {      
@@ -341,36 +367,20 @@ public:
     }
 
 
-        // 
-        // Constructor
-        // 
-    Pic32JTAGDevice()
+    bool IsConnected()
+    {
+        return InPgmMode_;
+    }
+    
+
+    uint32_t AutoDetect(void)
     {
         int n = 0;
-        DeviceID_ = 0;
+   
+        ReadIDCodeRegister();
+        //DeviceID_ = ReadFlashData(0xbf80f220);
 
-        CheckStatus();
-        //Erase();
-        EnterPgmMode();
 
-        DeviceID_ = ReadFlashData(0xbf80f220);
-
-/*
-     TEST
-        DevID_.DevID   = 0x4A01053;
-        DevID_.DevName[0] = '2';
-        DevID_.DevName[1] = '1';
-        DevID_.DevName[2] = '0';
-        DevID_.DevName[3] = 'F';
-        DevID_.DevName[4] = '0';
-        DevID_.DevName[5] = '1';
-        DevID_.DevName[6] = '6';
-        DevID_.DevName[7] = 'B';
-        DevID_.DevName[8] = 0;
-        DevID_.RowSize = 32;
-        DevID_.BFMSize = 3;
-        DevID_.PFMSize = 16;
-*/
             //
             // Find the device from Pic32DevIDList
             //
@@ -381,6 +391,22 @@ public:
             memcpy_P( &DevID_, &Pic32DevIDList[n], sizeof(DevID_) );
             ++n;
         }
+
+        return DeviceID_;
+    }
+
+
+        // 
+        // Constructor
+        // 
+    Pic32JTAGDevice()
+    {
+        DeviceID_ = 0;
+        MyStatus_ = 0;
+        InPgmMode_ = false;
+
+        CheckStatus();
+        AutoDetect();
     }
 };
 
