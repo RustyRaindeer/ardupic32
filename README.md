@@ -20,7 +20,7 @@ Feel free to rewrite if you wish ;-)
 Below are the instructinos on how to connect Arduino to PIC32MX.
 
 Arduino | Connect via | PIC32MX
----------------------------------------
+- - - - - - - - - - - - - - - - - - - - - - -
 PIN 8 (B0) | voltage divider | TMS
 PIN 9 (B1) | voltage divider | TDI
 PIN 10 (B2) | straight wire | TDO
