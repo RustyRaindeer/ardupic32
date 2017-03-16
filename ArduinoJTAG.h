@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2012, Tuomo Eljas Kaikkonen
+ Copyright (c) 2012-2017, Tuomo Eljas Kaikkonen
  All rights reserved.
 
  Redistribution and use in source and binary forms, with or without
@@ -31,6 +31,43 @@
 
 #include <Arduino.h>
 
+/**
+ * Ports and Pins for fast lowlevel access
+ */
+#define _TMS    &PORTB, 0x01
+#define _TDI    &PORTB, 0x02
+#define _TDO    &PINB,  0x04
+#define _TCK    &PORTB, 0x08
+#define _MCLR   &PORTB, 0x10
+//#define _LED    &PORTB, 0x20 // just for debugging..
+
+ /**
+  * Pins as per Arduino digitalRead/digitalWrite/pinMode compatible pin index.
+  */
+enum {
+    PIN_TMS  = 8,
+    PIN_TDI  = 9,
+    PIN_TDO  = 10,
+    PIN_TCK  = 11,
+    PIN_MCLR = 12
+};
+
+
+inline void setBIT( volatile uint8_t * PORT, uint8_t bit )
+{
+    *PORT |= bit;
+}
+
+inline void clearBIT( volatile uint8_t * PORT, uint8_t bit )
+{
+    *PORT &= ~bit;
+}
+
+inline bool getBIT( volatile uint8_t * PORT, uint8_t bit )
+{
+    return ((*PORT) & bit) != 0;
+}
+
 
 class ArduinoJTAG 
 {
@@ -38,23 +75,6 @@ private:
     bool tdo_;
 
 protected:    
-
-    /* All pins on PORTB!
-     */
-    enum {
-        PIN_TMS  = 8,
-        PIN_TDI  = 9,
-        PIN_TDO  = 10,
-        PIN_TCK  = 11,
-        PIN_MCLR = 12
-    };
-    enum {
-        BIT_TMS  = 0x01 << (PIN_TMS  - 8),
-        BIT_TDI  = 0x01 << (PIN_TDI  - 8),
-        BIT_TDO  = 0x01 << (PIN_TDO  - 8),
-        BIT_TCK  = 0x01 << (PIN_TCK  - 8),
-        BIT_MCLR = 0x01 << (PIN_MCLR - 8)
-    };
 
     ArduinoJTAG()
     {
@@ -72,12 +92,17 @@ protected:
 
     inline bool ClockPulse(void)
     {
+#ifdef _LED
+        setBIT(_LED);
+#endif
         ClearTCK();
-//        asm( "  NOP" );
-        delayMicroseconds(1);
-//        tdo_ = digitalRead( PIN_TDO );
-        tdo_ = PINB & BIT_TDO;
+        //delayMicroseconds(1);
+        tdo_ = digitalRead( PIN_TDO );
+        //tdo_ = getBIT( _TDO );
         SetTCK();
+#ifdef _LED
+        clearBIT(_LED);
+#endif
         return tdo_;
     }
 
@@ -88,54 +113,45 @@ protected:
 
     inline void SetTMS()
     {
-//        digitalWrite( PIN_TMS, HIGH );
-        PORTB |= BIT_TMS;
+        setBIT(_TMS);
     }
 
     inline void ClearTMS()
     {
-//        digitalWrite( PIN_TMS, LOW );
-        PORTB &= ~BIT_TMS;
+        clearBIT(_TMS);
     }
 
     inline void SetTCK()
     {
-//        digitalWrite( PIN_TCK, HIGH );
-        PORTB |= BIT_TCK;
+        setBIT(_TCK);
     }
 
     inline void ClearTCK()
     {
-//        digitalWrite( PIN_TCK, LOW );
-        PORTB &= ~BIT_TCK;    
+        clearBIT(_TCK);
     }
 
     inline void SetMCLR()
     {
-//        digitalWrite( PIN_MCLR, HIGH );
-        PORTB |= BIT_MCLR;
+        setBIT(_MCLR);
     }
 
     inline void ClearMCLR()
     {
-//        digitalWrite( PIN_MCLR, LOW );
-        PORTB &= ~BIT_MCLR;
+        clearBIT(_MCLR);
     }
 
     inline void SetTDI()
     {
-//        digitalWrite( PIN_TDI, HIGH );
-        PORTB |= BIT_TDI;
+        setBIT(_TDI);
     }
 
     inline void ClearTDI()
     {
-//        digitalWrite( PIN_TDI, LOW );
-        PORTB &= ~BIT_TDI;
+        clearBIT(_TDI);
     }
 
 };
-
 
 
 #endif

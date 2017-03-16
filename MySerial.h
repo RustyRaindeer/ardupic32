@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2012, Tuomo Eljas Kaikkonen
+ Copyright (c) 2012-2017, Tuomo Eljas Kaikkonen
  All rights reserved.
 
  Redistribution and use in source and binary forms, with or without
@@ -33,7 +33,7 @@
 #include <Arduino.h>
 #include "Pic32JTAGDevice.h"
 
-uint16_t GlobalCheckSum = 0;
+uint8_t GlobalCheckSum = 0;
 
 
 char RXChar(void)
@@ -78,6 +78,8 @@ unsigned char RXAsciiByte(void)
     b1 = Ascii2Hex(b1);
     b2 = Ascii2Hex(b2);
     b1 = ((b1<<4) + b2);
+
+    GlobalCheckSum += b1;
     return b1;
 }
 
@@ -127,11 +129,13 @@ void HexPgm( Pic32JTAGDevice pic32, bool program, bool verify )
     uint8_t  data[128];
     uint16_t line = 0;
 
-    uint16_t startCode = 0x0a;
-    uint16_t byteCount;
-    uint32_t address;
-    uint32_t addressHi = 0;
+    uint16_t startCode  = 0x0a;
+    uint16_t byteCount  = 0;
+    uint32_t address    = 0;
+    uint32_t addressHi  = 0;
     uint16_t recordType = 0;
+    uint8_t  checkSum   = 0;
+    uint8_t  checkSumC  = 0;
 
     uint16_t i;
     uint16_t Status;
@@ -145,7 +149,6 @@ void HexPgm( Pic32JTAGDevice pic32, bool program, bool verify )
         do
         {
             startCode = RXChar();
-            GlobalCheckSum = 0;
             if ( line == 1 )
             {
                 // ANSI clear screen
@@ -155,8 +158,15 @@ void HexPgm( Pic32JTAGDevice pic32, bool program, bool verify )
 
         if (startCode != ':')
         {   
-            Serial.print(F("Start code fail!"));    
-
+            Serial.print(F("Start code fail! Got "));
+            Serial.write(startCode);
+            Serial.println();
+            Serial.print(F("Line          "));
+            Serial.println(line);
+            Serial.print(F("Last address  0x"));
+            Serial.println(address, HEX);
+            Serial.println();
+            
             // error
             ConsumeRestOfFile();
             return;
@@ -171,6 +181,7 @@ void HexPgm( Pic32JTAGDevice pic32, bool program, bool verify )
             case 3: Serial.print(F("/")); break;
         }
       
+        GlobalCheckSum = 0;
         byteCount  = (uint16_t)RXAsciiByte();
         address    = (uint32_t)RXAsciiWord();
         recordType = (uint16_t)RXAsciiByte();
@@ -182,9 +193,11 @@ void HexPgm( Pic32JTAGDevice pic32, bool program, bool verify )
                 {
                     data[i] = RXAsciiByte();
                 }
-                RXAsciiByte(); /* checksum */
+                
+                checkSumC = ((uint8_t)0 - GlobalCheckSum);
+                checkSum  = RXAsciiByte(); /* checksum */
 
-                if ((GlobalCheckSum&0x00FF) == 0) 
+                if ( checkSumC != checkSum )
                 {   
                     flashAddr = (addressHi<<16) + (address);
 
@@ -239,12 +252,14 @@ void HexPgm( Pic32JTAGDevice pic32, bool program, bool verify )
 
             case 1:
                 //end
-                RXAsciiByte();  /*checksum */
+                checkSumC = ((uint8_t)0 - GlobalCheckSum);
+                checkSum  = RXAsciiByte();  /*checksum */
                 break;
 
             case 4:
                 addressHi = RXAsciiWord();
-                RXAsciiByte();  /* checksum */
+                checkSumC = ((uint8_t)0 - GlobalCheckSum);
+                checkSum  = RXAsciiByte();  /* checksum */
 
                 break;
 
@@ -255,11 +270,16 @@ void HexPgm( Pic32JTAGDevice pic32, bool program, bool verify )
     
         }
 
-        if ((GlobalCheckSum&0x00FF) != 00) 
+        if ( checkSumC != checkSum )
         {   
             // checksum error
             Serial.print(F("Chksum fail line "));
             Serial.println(line);
+
+            Serial.print(F("Checksum    0x"));
+            Serial.println(checkSum, HEX);
+            Serial.print(F("Calculated  0x"));
+            Serial.println(checkSumC, HEX);
             ConsumeRestOfFile();
             return;
         }
@@ -271,4 +291,3 @@ void HexPgm( Pic32JTAGDevice pic32, bool program, bool verify )
 
 
 #endif
-

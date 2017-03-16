@@ -4,9 +4,9 @@
  * Author:   Tuomo Kaikkonen
  * Email:    t e k ( a t ) i k i . f i
  *
- * A simple PIC32MX JTAG flash programmer for Arduino. Not optimized in
- * any way, just usable enough for being able to successfully flash a real
- * booloader on the chip.
+ * ArduPIC32, a simple PIC32MX JTAG flash programmer for Arduino. Provides 
+ * slow programming speed, but still enough for successfully flashing
+ * a real booloader on the chip.
  *
  * Use of the program should be pretty straightforward: After powering up
  * the Arduino, the PIC32 chip is automatically detected. Pressing 'h' 
@@ -14,9 +14,11 @@
  * the chip. Press 'P' to enter programming mode. Once in programming mode, 
  * just copy-paste the .hex -file contents into the terminal window. 
  *
- * Note that the serial port speed is set to only 1200bps. This is due to the 
- * inefficient implementation of the code which I have no plans on improving;
- * Feel free to rewrite if you wish ;-)
+ * Note that the serial port speed is limited to only 1200bps. JTAG protocol
+ * is created by bit banging the PORTB register directly. Not making use
+ * of Arduino digitalWrite method, since it proved too slow for the purpose.
+ * If using on a different Arduino than my old NG, you should probably check 
+ * and modify ArduinoJTAG.h accordingly.
  *
  * Below are the instructinos on how to connect Arduino to PIC32MX. 
  *
@@ -56,7 +58,7 @@
  ****************************************************************************/
 
 /*
- Copyright (c) 2012, Tuomo Eljas Kaikkonen
+ Copyright (c) 2012-2017, Tuomo Eljas Kaikkonen
  All rights reserved.
 
  Redistribution and use in source and binary forms, with or without
@@ -88,7 +90,7 @@
 #include "Pic32JTAGDevice.h"
 #include "MySerial.h"
 
-#define VERSION_STRING F("ArduPIC32 v1.2")
+#define VERSION_STRING F("ArduPIC32 v1.3")
 
 void PrintHelp(bool conn)
 {
@@ -159,11 +161,12 @@ void setup() {
 
 void loop() 
 {
+    Serial.println(VERSION_STRING);
+
     Pic32JTAGDevice pic32;
     uint32_t addr;
     bool exit = false;
       
-    Serial.println(VERSION_STRING);
     PrintPICInfo( pic32 );
     Serial.println(F("Press \"H\" to start!"));
 
@@ -345,5 +348,6 @@ void loop()
         pic32.SetReset(false);
     } 
 }
+
 
 

@@ -3,27 +3,30 @@ Automatically exported from code.google.com/p/ardupic32
 
 ArduPIC32: An Arduino PIC32MX JTAG Programmer!
 ---------------------------------------------------
-A simple PIC32MX JTAG flash programmer for Arduino. Not optimized in
-any way, just usable enough for being able to successfully flash a real
-booloader on the chip.
+ArduPIC32, a simple PIC32MX JTAG flash programmer for
+Arduino. Provides slow programming speed, but still enough for
+successfully flashing a real booloader on the chip.
 
 Use of the program should be pretty straightforward: After powering up
 the Arduino, the PIC32 chip is automatically detected. Pressing 'h'
 enables the operation and displays the help menu. Press 'e' to erase
-the chip. Press 'P' to enter programming mode. Once in programming mode,
-just copy-paste the .hex -file contents into the terminal window.
+the chip. Press 'P' to enter programming mode. Once in programming
+mode, just copy-paste the .hex -file contents into the terminal
+window.
 
-Note that the serial port speed is set to only 1200bps. This is due to the
-inefficient implementation of the code which I have no plans on improving;
-Feel free to rewrite if you wish ;-)
+Note that the serial port speed is limited to only 1200bps. JTAG
+protocol is created by bit banging the PORTB register directly. Not
+making use of Arduino digitalWrite method, since it proved too slow
+for the purpose.  If using on a different Arduino than my old NG, you
+should probably check and modify ArduinoJTAG.h accordingly.
 
 Below are the instructinos on how to connect Arduino to PIC32MX.
 
-Arduino | Connect via | PIC32MX
+    Arduino | Connect via     | PIC32MX
 - - - - - - - - - - - - - - - - - - - - - - -
-PIN 8 (B0) | voltage divider | TMS
-PIN 9 (B1) | voltage divider | TDI
-PIN 10 (B2) | straight wire | TDO
+ PIN 8 (B0) | voltage divider | TMS
+ PIN 9 (B1) | voltage divider | TDI
+PIN 10 (B2) | straight wire   | TDO
 PIN 11 (B3) | voltage divider | TCK
 PIN 12 (B4) | 470ohm resistor | MCLR (note: supposing 5V tolerant pin)
 
