@@ -122,6 +122,16 @@ void ConsumeRestOfFile( void )
     Serial.println();
 }
 
+void printNumBytesFlashed(uint16_t & bytesFlashed)
+{
+    if ( bytesFlashed > 0 )
+    {
+        Serial.print(F(" wrote "));
+        Serial.print(bytesFlashed, DEC);
+        Serial.println(F(" bytes"));
+        bytesFlashed = 0;
+    }
+}
 
 void HexPgm( Pic32JTAGDevice pic32, bool program, bool verify )
 {
@@ -140,6 +150,9 @@ void HexPgm( Pic32JTAGDevice pic32, bool program, bool verify )
     uint16_t i;
     uint16_t Status;
     uint16_t phase = 0;
+
+    bool     printAddress = false;
+    uint16_t bytesFlashed = 0;
 
     Serial.println (F("Send your .hex -file now."));
 
@@ -171,21 +184,12 @@ void HexPgm( Pic32JTAGDevice pic32, bool program, bool verify )
             ConsumeRestOfFile();
             return;
         }
-      
-        Serial.print(F("\x1b[1;0H"));  // goto row 1, column 0
-        switch ((phase++)&0x3)
-        {
-            case 0: Serial.print(F("-")); break;
-            case 1: Serial.print(F("\\")); break;
-            case 2: Serial.print(F("|")); break;
-            case 3: Serial.print(F("/")); break;
-        }
-      
+       
         GlobalCheckSum = 0;
         byteCount  = (uint16_t)RXAsciiByte();
         address    = (uint32_t)RXAsciiWord();
         recordType = (uint16_t)RXAsciiByte();
-
+                
         switch (recordType)
         {
             case 0:
@@ -197,7 +201,7 @@ void HexPgm( Pic32JTAGDevice pic32, bool program, bool verify )
                 checkSumC = ((uint8_t)0 - GlobalCheckSum);
                 checkSum  = RXAsciiByte(); /* checksum */
 
-                if ( checkSumC != checkSum )
+                if ( checkSumC == checkSum )
                 {   
                     flashAddr = (addressHi<<16) + (address);
 
@@ -207,6 +211,20 @@ void HexPgm( Pic32JTAGDevice pic32, bool program, bool verify )
                         uint32_t  byte = 0;
                         uint32_t  pgmAddr = flashAddr;
                         curData = (uint32_t*)(data);
+
+                        if (printAddress)
+                        {
+                            Serial.print(F("0x"));
+                            Serial.print(flashAddr, HEX);
+                            Serial.print(F(": 0x"));
+                            Serial.print((*curData), HEX);
+                            printAddress = false;
+                            bytesFlashed = 0;
+                        }
+                        else
+                        {
+                            Serial.print(".");
+                        }
                         
                         while ( byte < byteCount )
                         {
@@ -216,6 +234,7 @@ void HexPgm( Pic32JTAGDevice pic32, bool program, bool verify )
                             pic32.FlashOperation( NVMOP_WRITE_WORD, pgmAddr, 0 );
                             byte += 4;
                             pgmAddr += 4;
+                            bytesFlashed += 4;
                             ++curData;
                         }    
                     }
@@ -236,7 +255,7 @@ void HexPgm( Pic32JTAGDevice pic32, bool program, bool verify )
                                 Serial.print ( F(" 0x"));
                                 Serial.print ( fdata, HEX );
                                 Serial.print ( F(" <> 0x") );
-                                Serial.println ( (*curData), HEX );             
+                                Serial.print ( (*curData), HEX );             
                                 ConsumeRestOfFile();
                                 return;
                             }
@@ -244,7 +263,6 @@ void HexPgm( Pic32JTAGDevice pic32, bool program, bool verify )
                             flashAddr += 4;
                             ++curData;
                         }                        
-                        
                     }
                 }
 
@@ -252,6 +270,7 @@ void HexPgm( Pic32JTAGDevice pic32, bool program, bool verify )
 
             case 1:
                 //end
+                printNumBytesFlashed( bytesFlashed );
                 checkSumC = ((uint8_t)0 - GlobalCheckSum);
                 checkSum  = RXAsciiByte();  /*checksum */
                 break;
@@ -260,7 +279,8 @@ void HexPgm( Pic32JTAGDevice pic32, bool program, bool verify )
                 addressHi = RXAsciiWord();
                 checkSumC = ((uint8_t)0 - GlobalCheckSum);
                 checkSum  = RXAsciiByte();  /* checksum */
-
+                printNumBytesFlashed( bytesFlashed );
+                printAddress = true;
                 break;
 
             default:

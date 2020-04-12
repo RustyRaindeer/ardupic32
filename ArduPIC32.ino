@@ -90,7 +90,7 @@
 #include "Pic32JTAGDevice.h"
 #include "MySerial.h"
 
-#define VERSION_STRING F("ArduPIC32 v1.3")
+#define VERSION_STRING F("ArduPIC32 v1.4")
 
 void PrintHelp(bool conn)
 {
