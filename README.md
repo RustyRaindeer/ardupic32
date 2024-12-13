@@ -1,6 +1,3 @@
-# ardupic32
-Automatically exported from code.google.com/p/ardupic32
-
 ArduPIC32: An Arduino PIC32MX JTAG Programmer!
 ---------------------------------------------------
 ArduPIC32, a simple PIC32MX JTAG flash programmer for
@@ -22,19 +19,9 @@ should probably check and modify ArduinoJTAG.h accordingly.
 
 Below are the instructinos on how to connect Arduino to PIC32MX.
 
-    Arduino | Connect via     | PIC32MX
-- - - - - - - - - - - - - - - - - - - - - - -
- PIN 8 (B0) | voltage divider | TMS
- PIN 9 (B1) | voltage divider | TDI
-PIN 10 (B2) | straight wire   | TDO
-PIN 11 (B3) | voltage divider | TCK
-PIN 12 (B4) | 470ohm resistor | MCLR (note: supposing 5V tolerant pin)
+![JTAG_interface](https://github.com/user-attachments/assets/d49b4de7-1c0b-466f-a169-3e2ee311cbd3)
 
-NOTE: as a voltage divider I used 1.5k + 1.0k resitors. Connect 1.5k to ground,
-and its other end to PIC pin. Then connect the 1.0k between PIC pin and
-Arduino pin.
-
-NOTE2: check your PIC's datasheet if MCLR is 5V tolerant! It seems that the 5V
+NOTE: check your PIC's datasheet if MCLR is 5V tolerant! It seems that the 5V
 tolerance is not the same throughout the product line (for example,
 PIC32MX210F016B has all these pins 5V tolerant and you can use straight
 wires instead of voltage dividers, but for example PIC32MX795F512H has
